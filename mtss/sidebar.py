@@ -4,16 +4,14 @@ from shiny import App, render, ui, reactive
 import sys
 sys.path.append('/Users/carlos-ds/dev/shiny')
 
-# Get the dataframe columns
-# It's important to collect the LazyFrame to get the actual columns if get_base_data returns a LazyFrame
-# However, df.columns works on LazyFrame, so it's fine for just getting column names.
+baseColumns =['SSID', 'STUDENT_NAME', 'Grade', 'School', 'Language', 'Race']
 df = get_base_data().to_pandas()
 
 
 def organize_columns(columns):
     organized = {
-        "Assessments": {},  # Change to dictionary for nested structure
-        "Grades": [],
+        "Assessments": {},
+        "Grades": {},
         "Student Info": []
     }
 
@@ -24,6 +22,8 @@ def organize_columns(columns):
         # Try to match without testing period
         match_no_tp = re.match(
             r"^(?P<name>.*?)\s(?P<subject>.*?)\s(?P<year>\d{4}-\d{4})\s(?P<assessment_type>PL|SS)$", col)
+        # Match grades
+        match_gr = re.match(r"^GR_(?P<subject>[^_]+)_(?P<period>.+)$", col)
 
         if match_tp:
             data = match_tp.groupdict()
@@ -69,21 +69,29 @@ def organize_columns(columns):
             organized["Assessments"][name][subject][year][testing_period][assessment_type].append(
                 col)
 
-        elif re.search(r"^(GR)", col):  # Added EL and SE for grades
-            organized["Grades"].append(col)
+        elif match_gr:
+            data = match_gr.groupdict()
+            subject = data['subject']
+            period = data['period']
+
+            if subject not in organized["Grades"]:
+                organized["Grades"][subject] = {}
+            if period not in organized["Grades"][subject]:
+                organized["Grades"][subject][period] = []
+            organized["Grades"][subject][period].append(col)
         else:
             organized["Student Info"].append(col)
     return organized
 
 
-def create_tree_checkbox(id, label, children=None, is_leaf=False, open=False):
+def create_tree_checkbox(id, label, children=None, is_leaf=False, open=False, value=False):
     """Create a tree-like checkbox structure that can be nested
     Only leaf nodes will have checkboxes"""
 
     if children is None or is_leaf:
         # Leaf node - just a checkbox for the final level
         return ui.div(
-            ui.input_checkbox(id, "", value=False),
+            ui.input_checkbox(id, "", value=value),
             ui.tags.label(label, class_="tree-label", **{"for": id}),
             class_="tree-leaf"
         )
@@ -165,10 +173,11 @@ def create_assessment_menu(assessments_data):
                         for col in cols:
                             # Sanitize ID: replace all non-alphanumeric characters with underscore
                             col_id = f"col_{''.join(c if c.isalnum() else '_' for c in col)}"
+                            is_checked = col in baseColumns
                             # Pass only column name without test name details - show just value
                             display_label = atype  # Just show PL or SS
                             col_nodes.append(create_tree_checkbox(
-                                col_id, display_label, is_leaf=True))
+                                col_id, display_label, is_leaf=True, value=is_checked))
 
                         # Group by assessment type (PL/SS)
                         # Sanitize all parts of the ID
@@ -236,6 +245,30 @@ def create_assessment_menu(assessments_data):
     )
 
 
+def create_grades_menu(grades_data):
+    subject_nodes = []
+    for subject, periods in grades_data.items():
+        period_nodes = []
+        for period, cols in periods.items():
+            for col in cols:
+                col_id = f"col_{''.join(c if c.isalnum() else '_' for c in col)}"
+                is_checked = col in baseColumns
+                period_nodes.append(create_tree_checkbox(
+                    col_id, period, is_leaf=True, value=is_checked))
+
+        if period_nodes:
+            sanitized_subject = ''.join(
+                c if c.isalnum() else '_' for c in subject)
+            subject_id = f"subject_grades_{sanitized_subject}"
+            subject_nodes.append(create_tree_checkbox(
+                subject_id, subject, period_nodes))
+
+    return ui.div(
+        *subject_nodes,
+        class_="assessment-tree"
+    )
+
+
 # Organize the columns
 organized_cols = organize_columns(df.columns)
 
@@ -284,8 +317,7 @@ app_sidebar = ui.sidebar(
             flex-direction: column;
         }
         
-        .tab-pane {
-            flex: 1;
+        .tab-pane {n            flex: 1;
             overflow-y: auto;
             position: relative;
         }
@@ -327,8 +359,7 @@ app_sidebar = ui.sidebar(
         
         .tree-icon {
             margin-right: 5px;
-            color: #666;
-            width: 14px;
+            color: #666;n            width: 14px;
         }
         
         .tree-branch-label {
@@ -382,22 +413,17 @@ app_sidebar = ui.sidebar(
             font-weight: bold;
             font-size: 0.95rem;
         }
-    """),
+    """
+    ),
     ui.h3("Column Selection"),
     ui.navset_card_tab(
         ui.nav_panel("Assessments", create_assessment_menu(
             organized_cols["Assessments"])),
-        ui.nav_panel("Grades",
-                     ui.div(
-                         ui.input_checkbox_group(
-                             "grades_cols", "", organized_cols["Grades"]),
-                         class_="tree-children"
-                     )
-                     ),
+        ui.nav_panel("Grades", create_grades_menu(organized_cols["Grades"])),
         ui.nav_panel("Student Info",
                      ui.div(
                          ui.input_checkbox_group(
-                             "student_info_cols", "", organized_cols["Student Info"]),
+                             "student_info_cols", "", organized_cols["Student Info"], selected=[col for col in baseColumns if col in organized_cols["Student Info"]]),
                          class_="tree-children"
                      )
                      )
