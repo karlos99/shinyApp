@@ -369,9 +369,9 @@ app_sidebar = ui.sidebar(
     ui.tags.style("""
         /* Make the sidebar take up more space */
         .sidebar {
-            min-width: 270px;
+            min-width: 300px;
             width: 100%;
-            max-width: 320px;
+            max-width: 360px;
         }
         
         /* Make the Column Selection title more prominent */
@@ -380,6 +380,30 @@ app_sidebar = ui.sidebar(
             margin-top: 0.5rem;
             margin-bottom: 0.5rem;
             padding-left: 8px;
+            display: inline-block;
+        }
+        
+        /* Toggle button styling */
+        .toggle-button {
+            float: right;
+            margin-top: 0.5rem;
+            margin-right: 0.5rem;
+            cursor: pointer;
+            color: #4b5563;
+            transition: color 0.2s;
+        }
+        
+        .toggle-button:hover {
+            color: #1e40af;
+        }
+        
+        /* Header container with flex layout */
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 8px;
+            margin-bottom: 0.5rem;
         }
         
         /* Take up full height */
@@ -510,23 +534,50 @@ app_sidebar = ui.sidebar(
             color: #1e40af;
         }
     """
-                  ),
-    ui.h3("Column Selection", class_="text-xl font-semibold text-gray-800 mb-3"),
-    ui.navset_card_tab(
-        ui.nav_panel("Assessments", create_assessment_menu(
-            organized_cols["Assessments"])),
-        ui.nav_panel("Grades", create_grades_menu(
-            organized_cols["Grades"])),
-        ui.nav_panel("Student Info",
-                     ui.div(
-                         ui.input_checkbox_group(
-                             "student_info_cols", "", organized_cols["Student Info"],
-                             selected=[
-                                 col for col in baseColumns if col in organized_cols["Student Info"]],
-                             inline=True
-                         ),
-                         class_="tree-children p-2 student-info-checkboxes"
-                     )
-                     )
-    )
+    ),
+    ui.div(
+        ui.h3("Column Selection", class_="text-xl font-semibold text-gray-800"),
+        ui.tags.i(
+            class_="fas fa-eye-slash toggle-button", 
+            id="toggle-sidebar-btn",
+            onclick="toggleColumnSelection()"
+        ),
+        class_="header-container"
+    ),
+    ui.div(
+        ui.navset_card_tab(
+            ui.nav_panel("Assessments", create_assessment_menu(
+                organized_cols["Assessments"])),
+            ui.nav_panel("Grades", create_grades_menu(
+                organized_cols["Grades"])),
+            ui.nav_panel("Student Info",
+                        ui.div(
+                            ui.input_checkbox_group(
+                                "student_info_cols", "", organized_cols["Student Info"],
+                                selected=[
+                                    col for col in baseColumns if col in organized_cols["Student Info"]],
+                                inline=True
+                            ),
+                            class_="tree-children p-2 student-info-checkboxes"
+                        )
+                        )
+        ),
+        id="column-selection-content"
+    ),
+    ui.tags.script("""
+        function toggleColumnSelection() {
+            const content = document.getElementById('column-selection-content');
+            const toggleBtn = document.getElementById('toggle-sidebar-btn');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                toggleBtn.classList.remove('fa-eye');
+                toggleBtn.classList.add('fa-eye-slash');
+            } else {
+                content.style.display = 'none';
+                toggleBtn.classList.remove('fa-eye-slash');
+                toggleBtn.classList.add('fa-eye');
+            }
+        }
+    """)
 )
