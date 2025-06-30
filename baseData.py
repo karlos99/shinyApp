@@ -2,12 +2,12 @@ import polars as pl
 import os
 from dotenv import load_dotenv
 import re
+from functools import lru_cache
 
 load_dotenv()
 
-# @st.cache_data
 
-
+@lru_cache(maxsize=1)  # Cache the result for better performance
 def get_base_data():
 
     query = "SELECT * FROM mtss_base"
@@ -39,16 +39,17 @@ def get_base_data():
     assem_data = pivoted
     # left join the df to dd on SSID
     dd = df.join(assem_data, on='SSID', how='left')
-    g= get_grades()
+    g = get_grades()
     # left join the grades data on SSID
     dd = dd.join(g, on='SSID', how='left')
     # rename the column call ESL to Language
     dd = dd.rename({"ESL": "Language"})
-    #make the return a lazy frame
-    
+    # make the return a lazy frame
+
     return dd
 
 
+@lru_cache(maxsize=1)  # Cache the result for better performance
 def get_grades():
     elQuery = '''select me.*
     from mtss_base mb 
@@ -97,6 +98,8 @@ def get_grades():
 
     return df
 
+
+@lru_cache(maxsize=1)  # Cache the result for better performance
 def casspp_data():
 
     query = "SELECT * FROM mtss_base"
@@ -132,6 +135,7 @@ def casspp_data():
     dd = dd.rename({"ESL": "Language"})
 
     return dd
+
 
 if __name__ == "__main__":
     print(get_grades())

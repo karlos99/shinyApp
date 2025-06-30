@@ -4,7 +4,7 @@ from shiny import App, render, ui, reactive
 import sys
 sys.path.append('/Users/carlos-ds/dev/shiny')
 
-baseColumns =['SSID', 'STUDENT_NAME', 'Grade', 'School', 'Language', 'Race']
+baseColumns = ['SSID', 'STUDENT_NAME', 'Grade', 'School', 'Language', 'Race']
 df = get_base_data().to_pandas()
 
 
@@ -91,9 +91,13 @@ def create_tree_checkbox(id, label, children=None, is_leaf=False, open=False, va
     if children is None or is_leaf:
         # Leaf node - just a checkbox for the final level
         return ui.div(
-            ui.input_checkbox(id, "", value=value),
-            ui.tags.label(label, class_="tree-label", **{"for": id}),
-            class_="tree-leaf"
+            ui.div(
+                ui.input_checkbox(id, "", value=value),
+                ui.tags.label(
+                    label, class_="tree-label text-gray-700 ml-1", **{"for": id}),
+                class_="flex items-center"
+            ),
+            class_="tree-leaf hover:bg-gray-100 rounded py-1 px-2"
         )
     else:
         # Branch node with children - no checkbox
@@ -103,9 +107,9 @@ def create_tree_checkbox(id, label, children=None, is_leaf=False, open=False, va
         header = ui.div(
             ui.tags.span(
                 ui.tags.i(
-                    class_=f"fas fa-{'minus' if open else 'plus'}-square tree-icon"),
-                ui.tags.label(label, class_="tree-branch-label"),
-                class_="tree-branch-header",
+                    class_=f"fas fa-{'minus' if open else 'plus'}-square tree-icon text-blue-600"),
+                ui.tags.label(label, class_="tree-branch-label font-medium"),
+                class_="tree-branch-header hover:bg-gray-100 rounded",
                 id=f"{id}_header",
                 onclick=f"toggleTreeNode('{collapsible_id}', this)"
             ),
@@ -138,12 +142,35 @@ def create_assessment_menu(assessments_data):
             content.classList.remove('collapsed');
             icon.classList.remove('fa-plus-square');
             icon.classList.add('fa-minus-square');
+            
+            // Add a smooth animation
+            setTimeout(function() {
+                content.style.opacity = '1';
+            }, 50);
         } else {
-            content.classList.add('collapsed');
-            icon.classList.remove('fa-minus-square');
-            icon.classList.add('fa-plus-square');
+            content.style.opacity = '0';
+            
+            // Wait for opacity transition before collapsing
+            setTimeout(function() {
+                content.classList.add('collapsed');
+                icon.classList.remove('fa-minus-square');
+                icon.classList.add('fa-plus-square');
+            }, 200);
         }
     }
+    
+    // Add hover effect to tree elements
+    document.addEventListener('DOMContentLoaded', function() {
+        const treeItems = document.querySelectorAll('.tree-branch-header, .tree-leaf');
+        treeItems.forEach(item => {
+            item.addEventListener('mouseenter', function() {
+                this.classList.add('bg-gray-100');
+            });
+            item.addEventListener('mouseleave', function() {
+                this.classList.remove('bg-gray-100');
+            });
+        });
+    });
     """
 
     # Top-level assessment names
@@ -341,16 +368,17 @@ app_sidebar = ui.sidebar(
         .tree-branch {
             display: flex;
             align-items: center;
-            cursor: pointer;
         }
         
         .tree-branch-header {
             display: flex;
             align-items: center;
             cursor: pointer;
-            padding: 2px;
+            padding: 6px 8px;
             flex-grow: 1;
             width: 100%;
+            border-radius: 0.25rem;
+            transition: background-color 0.2s;
         }
         
         .tree-branch-header:hover {
@@ -358,73 +386,81 @@ app_sidebar = ui.sidebar(
         }
         
         .tree-icon {
-            margin-right: 5px;
-            color: #666;n            width: 14px;
+            margin-right: 8px;
+            color: #4b5563;
+            width: 14px;
         }
         
         .tree-branch-label {
             cursor: pointer;
             margin-bottom: 0;
-            font-size: 0.9rem;
-            width: calc(100% - 20px);  /* Allow space for the icon */
+            font-size: 0.95rem;
+            width: calc(100% - 22px);
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            font-family: 'Poppins', sans-serif;
+            font-weight: 500;
         }
         
         .tree-children {
-            margin-left: 10px;
-            border-left: 1px dashed #ddd;
-            padding-left: 5px;
+            margin-left: 12px;
+            border-left: 1px dashed #cbd5e1;
+            padding-left: 8px;
             overflow: hidden;
             max-height: 2000px;
-            transition: max-height 0.3s ease-out;
+            transition: max-height 0.3s ease-out, opacity 0.3s;
         }
         
         .tree-children.collapsed {
             max-height: 0;
-            transition: max-height 0.2s ease-out;
+            opacity: 0;
+            transition: max-height 0.2s ease-out, opacity 0.2s;
         }
         
         .tree-leaf {
             display: flex;
             align-items: center;
-            padding: 1px 0;
-            width: 100%;
+            margin: 3px 0;
+            padding: 4px 6px;
+            border-radius: 0.25rem;
         }
         
-        .tree-label {
-            margin-bottom: 0;
-            margin-left: 4px;
-            font-size: 0.85rem;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .tree-leaf:hover {
+            background-color: #e2e8f0;
         }
         
-        /* Make the checkboxes more compact */
+        /* Make the checkboxes more appealing */
         .form-check-input {
             margin-top: 0;
             margin-left: 0;
+            border-radius: 0.25rem;
+            border: 1px solid #cbd5e1;
         }
         
         /* Font sizes for different levels */
         .tree-node > .tree-branch .tree-branch-label {
-            font-weight: bold;
-            font-size: 0.95rem;
+            font-weight: 600;
+            font-size: 1rem;
+            color: #1e40af;
         }
     """
-    ),
-    ui.h3("Column Selection"),
+                  ),
+    ui.h3("Column Selection", class_="text-xl font-semibold text-gray-800 mb-3"),
     ui.navset_card_tab(
         ui.nav_panel("Assessments", create_assessment_menu(
             organized_cols["Assessments"])),
-        ui.nav_panel("Grades", create_grades_menu(organized_cols["Grades"])),
+        ui.nav_panel("Grades", create_grades_menu(
+            organized_cols["Grades"])),
         ui.nav_panel("Student Info",
                      ui.div(
                          ui.input_checkbox_group(
-                             "student_info_cols", "", organized_cols["Student Info"], selected=[col for col in baseColumns if col in organized_cols["Student Info"]]),
-                         class_="tree-children"
+                             "student_info_cols", "", organized_cols["Student Info"],
+                             selected=[
+                                 col for col in baseColumns if col in organized_cols["Student Info"]],
+                             inline=True
+                         ),
+                         class_="tree-children p-2 student-info-checkboxes"
                      )
                      )
     )
