@@ -377,19 +377,35 @@ def create_student_info_filter(columns):
         if len(unique_values) > 50:
             continue
 
-        # Create checkbox group for this column
+        # Create select input for this column
         sanitized_col = ''.join(c if c.isalnum() else '_' for c in col)
         filter_id = f"filter_{sanitized_col}"
+
+        # Create unique ID for the collapsible section
+        collapse_id = f"collapse_{sanitized_col}"
+
         filter_items.append(
             ui.div(
-                ui.h4(col, class_="font-medium text-gray-700 mb-1"),
-                ui.input_checkbox_group(
-                    filter_id, "",
-                    choices=sorted(unique_values),
-                    selected=[],
-                    inline=False
+                # Collapsible header
+                ui.div(
+                    ui.h4(col, class_="font-medium text-gray-700 mb-1"),
+                    ui.tags.i(
+                        class_="fas fa-chevron-down float-right toggle-filter-icon"),
+                    class_="filter-header cursor-pointer",
+                    onclick=f"toggleFilterSection('{collapse_id}')"
                 ),
-                class_="mb-4"
+                # Collapsible content
+                ui.div(
+                    ui.input_selectize(
+                        filter_id, "",
+                        choices=[""] + sorted(unique_values),
+                        selected="",
+                        multiple=True
+                    ),
+                    class_="filter-content mt-2 mb-3",
+                    id=collapse_id
+                ),
+                class_="filter-item mb-4 pb-2 border-b border-gray-200"
             )
         )
 
@@ -446,26 +462,52 @@ def create_assessment_filter(assessments_data):
 
                     year_filters.append(
                         ui.div(
-                            ui.h4(
-                                f"{year}", class_="font-medium text-gray-700 mb-1"),
-                            ui.input_checkbox_group(
-                                filter_id, "",
-                                choices=sorted(list(unique_pl_values)),
-                                selected=[],
-                                inline=False
+                            # Collapsible header for year
+                            ui.div(
+                                ui.h4(
+                                    f"{year}", class_="font-medium text-gray-700 mb-1"),
+                                ui.tags.i(
+                                    class_="fas fa-chevron-down float-right toggle-filter-icon"),
+                                class_="filter-header cursor-pointer",
+                                onclick=f"toggleFilterSection('collapse_{filter_id}')"
                             ),
-                            class_="mb-3"
+                            # Collapsible content
+                            ui.div(
+                                ui.input_selectize(
+                                    filter_id, "",
+                                    choices=[""] +
+                                    sorted(list(unique_pl_values)),
+                                    selected="",
+                                    multiple=True
+                                ),
+                                class_="filter-content mt-2 mb-3",
+                                id=f"collapse_{filter_id}"
+                            ),
+                            class_="filter-item mb-3 pb-2 border-b border-gray-200"
                         )
                     )
 
             # If we have year filters, add them to subject filters
             if year_filters:
+                # Create a unique ID for subject collapsible section
+                subject_collapse_id = f"collapse_subject_{sanitized_name}_{sanitized_subject}"
+
                 subject_filters.append(
                     ui.div(
-                        ui.h3(subject, class_="font-semibold text-blue-800 mb-2"),
+                        # Collapsible header for subject
+                        ui.div(
+                            ui.h3(
+                                subject, class_="font-semibold text-blue-800 mb-2"),
+                            ui.tags.i(
+                                class_="fas fa-chevron-down float-right toggle-filter-icon"),
+                            class_="filter-header cursor-pointer",
+                            onclick=f"toggleFilterSection('{subject_collapse_id}')"
+                        ),
+                        # Collapsible content
                         ui.div(
                             *year_filters,
-                            class_="ml-3"
+                            class_="ml-3",
+                            id=subject_collapse_id
                         ),
                         class_="mb-4"
                     )
@@ -473,14 +515,26 @@ def create_assessment_filter(assessments_data):
 
         # If we have subject filters, add them to assessment filters
         if subject_filters:
+            # Create a unique ID for assessment collapsible section
+            assessment_collapse_id = f"collapse_assessment_{sanitized_name}"
+
             assessment_filter_nodes.append(
                 ui.div(
-                    ui.h2(name, class_="text-lg font-bold text-blue-900 mb-2"),
+                    # Collapsible header for assessment
+                    ui.div(
+                        ui.h2(name, class_="text-lg font-bold text-blue-900 mb-2"),
+                        ui.tags.i(
+                            class_="fas fa-chevron-down float-right toggle-filter-icon"),
+                        class_="filter-header cursor-pointer",
+                        onclick=f"toggleFilterSection('{assessment_collapse_id}')"
+                    ),
+                    # Collapsible content
                     ui.div(
                         *subject_filters,
-                        class_="ml-3"
+                        class_="ml-3",
+                        id=assessment_collapse_id
                     ),
-                    class_="mb-5"
+                    class_="mb-5 pb-3 border-b border-gray-300"
                 )
             )
 
@@ -519,29 +573,57 @@ def create_grades_filter(grades_data):
                 c if c.isalnum() else '_' for c in period)
             filter_id = f"filter_grades_{sanitized_subject}_{sanitized_period}"
 
+            # Create unique ID for period collapsible section
+            period_collapse_id = f"collapse_{filter_id}"
+
             period_filters.append(
                 ui.div(
-                    ui.h4(period, class_="font-medium text-gray-700 mb-1"),
-                    ui.input_checkbox_group(
-                        filter_id, "",
-                        choices=sorted(list(unique_values), key=str),
-                        selected=[],
-                        inline=False
+                    # Collapsible header for period
+                    ui.div(
+                        ui.h4(period, class_="font-medium text-gray-700 mb-1"),
+                        ui.tags.i(
+                            class_="fas fa-chevron-down float-right toggle-filter-icon"),
+                        class_="filter-header cursor-pointer",
+                        onclick=f"toggleFilterSection('{period_collapse_id}')"
                     ),
-                    class_="mb-3"
+                    # Collapsible content
+                    ui.div(
+                        ui.input_selectize(
+                            filter_id, "",
+                            choices=[""] +
+                            sorted(list(unique_values), key=str),
+                            selected="",
+                            multiple=True
+                        ),
+                        class_="filter-content mt-2 mb-3",
+                        id=period_collapse_id
+                    ),
+                    class_="filter-item mb-3 pb-2 border-b border-gray-200"
                 )
             )
 
         # If we have period filters, add them to subject filters
         if period_filters:
+            # Create unique ID for subject collapsible section
+            subject_collapse_id = f"collapse_grades_subject_{sanitized_subject}"
+
             subject_filter_nodes.append(
                 ui.div(
-                    ui.h3(subject, class_="font-semibold text-blue-800 mb-2"),
+                    # Collapsible header for subject
+                    ui.div(
+                        ui.h3(subject, class_="font-semibold text-blue-800 mb-2"),
+                        ui.tags.i(
+                            class_="fas fa-chevron-down float-right toggle-filter-icon"),
+                        class_="filter-header cursor-pointer",
+                        onclick=f"toggleFilterSection('{subject_collapse_id}')"
+                    ),
+                    # Collapsible content
                     ui.div(
                         *period_filters,
-                        class_="ml-3"
+                        class_="ml-3",
+                        id=subject_collapse_id
                     ),
-                    class_="mb-4"
+                    class_="mb-4 pb-2 border-b border-gray-200"
                 )
             )
 
@@ -740,6 +822,47 @@ app_sidebar = ui.sidebar(
         .filter-section h4 {
             color: #4b5563;
             font-size: 0.95rem;
+            display: inline-block;
+        }
+        
+        /* Filter header styling */
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+        }
+        
+        .filter-header:hover {
+            background-color: #f3f4f6;
+        }
+        
+        .toggle-filter-icon {
+            color: #6b7280;
+            transition: transform 0.2s;
+        }
+        
+        /* Selectize styling */
+        .selectize-control {
+            width: 100%;
+        }
+        
+        .selectize-dropdown-content {
+            max-height: 200px;
+        }
+        
+        .selectize-control.multi .selectize-input {
+            padding: 6px 8px;
+        }
+        
+        .selectize-control.multi .selectize-input > div {
+            margin: 2px 3px;
+            padding: 1px 5px;
+            background: #e2e8f0;
+            color: #4b5563;
+            border-radius: 3px;
         }
         
         /* Divider styling */
@@ -799,7 +922,8 @@ app_sidebar = ui.sidebar(
             ui.nav_panel("Student Info", create_student_info_filter(
                 organized_cols["Student Info"]))
         ),
-        id="filters-content"
+        id="filters-content",
+        style="display: block;"  # Make filters visible by default
     ),
     ui.tags.script("""
         function toggleColumnSelection() {
@@ -831,5 +955,35 @@ app_sidebar = ui.sidebar(
                 toggleBtn.classList.add('fa-eye');
             }
         }
+        
+        function toggleFilterSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const header = section.previousElementSibling;
+            const icon = header.querySelector('.toggle-filter-icon');
+            
+            if (section.style.display === 'none' || section.style.display === '') {
+                section.style.display = 'block';
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            } else {
+                section.style.display = 'none';
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-right');
+            }
+        }
+        
+        // Initialize all filter sections as collapsed on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterContents = document.querySelectorAll('.filter-content');
+            filterContents.forEach(function(content) {
+                content.style.display = 'none';
+                const header = content.previousElementSibling;
+                const icon = header.querySelector('.toggle-filter-icon');
+                if (icon) {
+                    icon.classList.remove('fa-chevron-down');
+                    icon.classList.add('fa-chevron-right');
+                }
+            });
+        });
     """)
 )

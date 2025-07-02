@@ -245,13 +245,22 @@ def server(input, output, session):
         # Apply student info filters
         for col, values in filters["student_info"].items():
             if values and col in filtered_df.columns:
-                filtered_df = filtered_df[filtered_df[col].isin(values)]
+                # Filter out empty string values that might come from selectize
+                valid_values = [v for v in values if v != ""]
+                if valid_values:
+                    filtered_df = filtered_df[filtered_df[col].isin(
+                        valid_values)]
 
         # Apply assessment filters
         for name, subjects in filters["assessments"].items():
             for subject, years in subjects.items():
                 for year, values in years.items():
                     if not values:
+                        continue
+
+                    # Filter out empty string values that might come from selectize
+                    valid_values = [v for v in values if v != ""]
+                    if not valid_values:
                         continue
 
                     # Find all PL columns for this assessment/subject/year
@@ -278,6 +287,11 @@ def server(input, output, session):
         for subject, periods in filters["grades"].items():
             for period, values in periods.items():
                 if not values:
+                    continue
+
+                # Filter out empty string values that might come from selectize
+                valid_values = [v for v in values if v != ""]
+                if not valid_values:
                     continue
 
                 # Find matching grade columns
