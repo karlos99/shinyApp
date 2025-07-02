@@ -169,6 +169,62 @@ def server(input, output, session):
 
         return list(cols)
 
+    @reactive.Calc
+    def get_active_filters():
+        """Collect all active filters from the UI"""
+        filters = {
+            "assessments": {},
+            "grades": {},
+            "student_info": {}
+        }
+
+        # Collect assessment filters
+        for name, subjects in organized_cols["Assessments"].items():
+            for subject, years in subjects.items():
+                for year, _ in years.items():
+                    # Sanitize filter ID
+                    sanitized_name = ''.join(
+                        c if c.isalnum() else '_' for c in name)
+                    sanitized_subject = ''.join(
+                        c if c.isalnum() else '_' for c in subject)
+                    sanitized_year = ''.join(
+                        c if c.isalnum() else '_' for c in year)
+                    filter_id = f"filter_{sanitized_name}_{sanitized_subject}_{sanitized_year}"
+
+                    if filter_id in input and input[filter_id]():
+                        if name not in filters["assessments"]:
+                            filters["assessments"][name] = {}
+                        if subject not in filters["assessments"][name]:
+                            filters["assessments"][name][subject] = {}
+                        filters["assessments"][name][subject][year] = input[filter_id]()
+
+        # Collect grades filters
+        for subject, periods in organized_cols["Grades"].items():
+            for period in periods.keys():
+                # Sanitize filter ID
+                sanitized_subject = ''.join(
+                    c if c.isalnum() else '_' for c in subject)
+                sanitized_period = ''.join(
+                    c if c.isalnum() else '_' for c in period)
+                filter_id = f"filter_grades_{sanitized_subject}_{sanitized_period}"
+
+                if filter_id in input and input[filter_id]():
+                    if subject not in filters["grades"]:
+                        filters["grades"][subject] = {}
+                    filters["grades"][subject][period] = input[filter_id]()
+
+        # Collect student info filters
+        for col in organized_cols["Student Info"]:
+            if col not in ['SSID', 'STUDENT_NAME'] and not 'ID' in col:
+                # Sanitize filter ID
+                sanitized_col = ''.join(c if c.isalnum() else '_' for c in col)
+                filter_id = f"filter_{sanitized_col}"
+
+                if filter_id in input and input[filter_id]():
+                    filters["student_info"][col] = input[filter_id]()
+
+        return filters
+
     @output
     @render.data_frame
     def data_table():
@@ -180,8 +236,85 @@ def server(input, output, session):
         if not valid_cols:
             return df.head(0)
 
-        # Return the DataFrame directly - Shiny will handle the rendering
-        return df[valid_cols]
+        # Get active filters
+        filters = get_active_filters()
+
+        # Start with the original dataframe
+        filtered_df = df.copy()
+
+        # Apply student info filters
+        for col, values in filters["student_info"].items():
+            if values and col in filtered_df.columns:
+                filtered_df = filtered_df[filtered_df[col].isin(values)]
+
+        # Apply assessment filters
+        for name, subjects in filters["assessments"].items():
+            for subject, years in subjects.items():
+                for year, values in years.items():
+                    if not values:
+                        continue
+
+                    # Find all PL columns for this assessment/subject/year
+                    matching_columns = []
+                    for col in filtered_df.columns:
+                        if name in col and subject in col and year in col and "PL" in col:
+                            matching_columns.append(col)
+
+                    # Apply filter to any matching columns
+                    if matching_columns:
+                        # Create a condition that checks if ANY of the columns has ANY of the values
+                        condition = None
+                        for col in matching_columns:
+                            col_condition = filtered_df[col].isin(values)
+                            if condition is None:
+                                condition = col_condition
+                            else:
+                                condition = condition | col_condition
+
+                        if condition is not None:
+                            filtered_df = filtered_df[condition]
+
+        # Apply grades filters
+        for subject, periods in filters["grades"].items():
+            for period, values in periods.items():
+                if not values:
+                    continue
+
+                # Find matching grade columns
+                matching_columns = []
+                for col in filtered_df.columns:
+                    if col.startswith(f"GR_{subject}_{period}"):
+                        matching_columns.append(col)
+
+                # Apply filter to any matching columns
+                if matching_columns:
+                    # Create a condition that checks if ANY of the columns has ANY of the values
+                    condition = None
+                    for col in matching_columns:
+                        # Convert values to the same type as the column data
+                        typed_values = []
+                        for val in values:
+                            try:
+                                if filtered_df[col].dtype == 'int64':
+                                    typed_values.append(int(val))
+                                elif filtered_df[col].dtype == 'float64':
+                                    typed_values.append(float(val))
+                                else:
+                                    typed_values.append(val)
+                            except (ValueError, TypeError):
+                                typed_values.append(val)
+
+                        col_condition = filtered_df[col].isin(typed_values)
+                        if condition is None:
+                            condition = col_condition
+                        else:
+                            condition = condition | col_condition
+
+                    if condition is not None:
+                        filtered_df = filtered_df[condition]
+
+        # Return the filtered DataFrame with selected columns
+        return filtered_df[valid_cols]
 
 
 app = App(app_ui, server)

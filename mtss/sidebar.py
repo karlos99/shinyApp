@@ -361,6 +361,196 @@ def create_grades_menu(grades_data):
     )
 
 
+def create_student_info_filter(columns):
+    """Create filter controls for student info columns"""
+    filter_items = []
+
+    # Filter out any identifier columns like SSID, STUDENT_NAME, ID, etc.
+    filtered_columns = [col for col in columns if col not in [
+        'SSID', 'STUDENT_NAME'] and not 'ID' in col]
+
+    for col in filtered_columns:
+        # Get unique values for this column
+        unique_values = df[col].dropna().unique().tolist()
+
+        # Skip if there are too many unique values (likely an identifier)
+        if len(unique_values) > 50:
+            continue
+
+        # Create checkbox group for this column
+        sanitized_col = ''.join(c if c.isalnum() else '_' for c in col)
+        filter_id = f"filter_{sanitized_col}"
+        filter_items.append(
+            ui.div(
+                ui.h4(col, class_="font-medium text-gray-700 mb-1"),
+                ui.input_checkbox_group(
+                    filter_id, "",
+                    choices=sorted(unique_values),
+                    selected=[],
+                    inline=False
+                ),
+                class_="mb-4"
+            )
+        )
+
+    return ui.div(
+        *filter_items,
+        class_="filter-section p-2"
+    )
+
+
+def create_assessment_filter(assessments_data):
+    """Create filter controls for assessment data (PL only)"""
+    assessment_filter_nodes = []
+
+    for name, subjects in assessments_data.items():
+        subject_filters = []
+
+        for subject, years in subjects.items():
+            year_filters = []
+
+            for year, testing_periods in years.items():
+                # For each assessment type, we'll create a filter for PL values only
+                pl_columns = []
+
+                for tp, assessment_types in testing_periods.items():
+                    if "PL" in assessment_types:
+                        for col in assessment_types["PL"]:
+                            pl_columns.append(col)
+
+                # If we have PL columns, create a filter for this year/subject
+                if pl_columns:
+                    # Get unique PL values across all columns
+                    unique_pl_values = set()
+                    for col in pl_columns:
+                        if col in df.columns:
+                            values = df[col].dropna().unique().tolist()
+                            # Only add reasonable length string values
+                            values = [v for v in values if isinstance(
+                                v, str) and len(v) < 50]
+                            unique_pl_values.update(values)
+
+                    # Skip if there are no valid values
+                    if not unique_pl_values:
+                        continue
+
+                    # Create a filter ID based on name, subject, year
+                    # Sanitize ID: replace all non-alphanumeric characters with underscore
+                    sanitized_name = ''.join(
+                        c if c.isalnum() else '_' for c in name)
+                    sanitized_subject = ''.join(
+                        c if c.isalnum() else '_' for c in subject)
+                    sanitized_year = ''.join(
+                        c if c.isalnum() else '_' for c in year)
+                    filter_id = f"filter_{sanitized_name}_{sanitized_subject}_{sanitized_year}"
+
+                    year_filters.append(
+                        ui.div(
+                            ui.h4(
+                                f"{year}", class_="font-medium text-gray-700 mb-1"),
+                            ui.input_checkbox_group(
+                                filter_id, "",
+                                choices=sorted(list(unique_pl_values)),
+                                selected=[],
+                                inline=False
+                            ),
+                            class_="mb-3"
+                        )
+                    )
+
+            # If we have year filters, add them to subject filters
+            if year_filters:
+                subject_filters.append(
+                    ui.div(
+                        ui.h3(subject, class_="font-semibold text-blue-800 mb-2"),
+                        ui.div(
+                            *year_filters,
+                            class_="ml-3"
+                        ),
+                        class_="mb-4"
+                    )
+                )
+
+        # If we have subject filters, add them to assessment filters
+        if subject_filters:
+            assessment_filter_nodes.append(
+                ui.div(
+                    ui.h2(name, class_="text-lg font-bold text-blue-900 mb-2"),
+                    ui.div(
+                        *subject_filters,
+                        class_="ml-3"
+                    ),
+                    class_="mb-5"
+                )
+            )
+
+    return ui.div(
+        *assessment_filter_nodes,
+        class_="filter-section p-2"
+    )
+
+
+def create_grades_filter(grades_data):
+    """Create filter controls for grades data"""
+    subject_filter_nodes = []
+
+    for subject, periods in grades_data.items():
+        period_filters = []
+
+        for period, cols in periods.items():
+            # Get unique grade values
+            unique_values = set()
+            for col in cols:
+                if col in df.columns:
+                    values = df[col].dropna().unique().tolist()
+                    # Only include grade-like values (short strings or numbers)
+                    values = [v for v in values if (isinstance(
+                        v, str) and len(v) < 5) or isinstance(v, (int, float))]
+                    unique_values.update(values)
+
+            # Skip if there are no valid values
+            if not unique_values:
+                continue
+
+            # Create filter ID
+            sanitized_subject = ''.join(
+                c if c.isalnum() else '_' for c in subject)
+            sanitized_period = ''.join(
+                c if c.isalnum() else '_' for c in period)
+            filter_id = f"filter_grades_{sanitized_subject}_{sanitized_period}"
+
+            period_filters.append(
+                ui.div(
+                    ui.h4(period, class_="font-medium text-gray-700 mb-1"),
+                    ui.input_checkbox_group(
+                        filter_id, "",
+                        choices=sorted(list(unique_values), key=str),
+                        selected=[],
+                        inline=False
+                    ),
+                    class_="mb-3"
+                )
+            )
+
+        # If we have period filters, add them to subject filters
+        if period_filters:
+            subject_filter_nodes.append(
+                ui.div(
+                    ui.h3(subject, class_="font-semibold text-blue-800 mb-2"),
+                    ui.div(
+                        *period_filters,
+                        class_="ml-3"
+                    ),
+                    class_="mb-4"
+                )
+            )
+
+    return ui.div(
+        *subject_filter_nodes,
+        class_="filter-section p-2"
+    )
+
+
 # Organize the columns
 organized_cols = organize_columns(df.columns)
 
@@ -433,7 +623,8 @@ app_sidebar = ui.sidebar(
             flex-direction: column;
         }
         
-        .tab-pane {n            flex: 1;
+        .tab-pane {
+            flex: 1;
             overflow-y: auto;
             position: relative;
         }
@@ -444,7 +635,7 @@ app_sidebar = ui.sidebar(
         }
         
         /* Tree structure styling */
-        .assessment-tree {
+        .assessment-tree, .filter-section {
             padding: 8px;
             height: 100%;
             overflow-y: auto;
@@ -533,13 +724,36 @@ app_sidebar = ui.sidebar(
             font-size: 1rem;
             color: #1e40af;
         }
+        
+        /* Filters section styling */
+        .filter-section h2 {
+            color: #1e40af;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 5px;
+        }
+        
+        .filter-section h3 {
+            color: #2563eb;
+            font-size: 1.05rem;
+        }
+        
+        .filter-section h4 {
+            color: #4b5563;
+            font-size: 0.95rem;
+        }
+        
+        /* Divider styling */
+        .sidebar-divider {
+            margin: 1rem 0;
+            border-top: 1px solid #e2e8f0;
+        }
     """
-    ),
+                  ),
     ui.div(
         ui.h3("Column Selection", class_="text-xl font-semibold text-gray-800"),
         ui.tags.i(
-            class_="fas fa-eye-slash toggle-button", 
-            id="toggle-sidebar-btn",
+            class_="fas fa-eye-slash toggle-button",
+            id="toggle-column-btn",
             onclick="toggleColumnSelection()"
         ),
         class_="header-container"
@@ -551,25 +765,63 @@ app_sidebar = ui.sidebar(
             ui.nav_panel("Grades", create_grades_menu(
                 organized_cols["Grades"])),
             ui.nav_panel("Student Info",
-                        ui.div(
-                            ui.input_checkbox_group(
-                                "student_info_cols", "", organized_cols["Student Info"],
-                                selected=[
-                                    col for col in baseColumns if col in organized_cols["Student Info"]],
-                                inline=True
-                            ),
-                            class_="tree-children p-2 student-info-checkboxes"
-                        )
-                        )
+                         ui.div(
+                             ui.input_checkbox_group(
+                                 "student_info_cols", "", organized_cols["Student Info"],
+                                 selected=[
+                                     col for col in baseColumns if col in organized_cols["Student Info"]],
+                                 inline=True
+                             ),
+                             class_="tree-children p-2 student-info-checkboxes"
+                         )
+                         )
         ),
         id="column-selection-content"
+    ),
+    # Divider
+    ui.tags.div(class_="sidebar-divider"),
+    # Filters Section
+    ui.div(
+        ui.h3("Filters", class_="text-xl font-semibold text-gray-800"),
+        ui.tags.i(
+            class_="fas fa-eye-slash toggle-button",
+            id="toggle-filters-btn",
+            onclick="toggleFilters()"
+        ),
+        class_="header-container"
+    ),
+    ui.div(
+        ui.navset_card_tab(
+            ui.nav_panel("Assessments", create_assessment_filter(
+                organized_cols["Assessments"])),
+            ui.nav_panel("Grades", create_grades_filter(
+                organized_cols["Grades"])),
+            ui.nav_panel("Student Info", create_student_info_filter(
+                organized_cols["Student Info"]))
+        ),
+        id="filters-content"
     ),
     ui.tags.script("""
         function toggleColumnSelection() {
             const content = document.getElementById('column-selection-content');
-            const toggleBtn = document.getElementById('toggle-sidebar-btn');
+            const toggleBtn = document.getElementById('toggle-column-btn');
             
             if (content.style.display === 'none') {
+                content.style.display = 'block';
+                toggleBtn.classList.remove('fa-eye');
+                toggleBtn.classList.add('fa-eye-slash');
+            } else {
+                content.style.display = 'none';
+                toggleBtn.classList.remove('fa-eye-slash');
+                toggleBtn.classList.add('fa-eye');
+            }
+        }
+
+        function toggleFilters() {
+            const content = document.getElementById('filters-content');
+            const toggleBtn = document.getElementById('toggle-filters-btn');
+            
+            if (content.style.display === 'none' || content.style.display === '') {
                 content.style.display = 'block';
                 toggleBtn.classList.remove('fa-eye');
                 toggleBtn.classList.add('fa-eye-slash');
