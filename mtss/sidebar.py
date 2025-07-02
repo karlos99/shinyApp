@@ -865,6 +865,52 @@ app_sidebar = ui.sidebar(
             border-radius: 3px;
         }
         
+        /* Column ordering styles */
+        .column-order-container {
+            border: 1px solid #e2e8f0;
+            border-radius: 0.375rem;
+            min-height: 50px;
+            max-height: 300px;
+            overflow-y: auto;
+            background-color: #f8fafc;
+        }
+        
+        .sortable-item {
+            padding: 0.5rem;
+            margin: 4px;
+            background-color: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            cursor: grab;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            transition: all 0.2s;
+        }
+        
+        .sortable-item:hover {
+            background-color: #f1f5f9;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sortable-item.sortable-ghost {
+            opacity: 0.5;
+            background-color: #e2e8f0;
+        }
+        
+        .sortable-item.sortable-chosen {
+            background-color: #e2e8f0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .sortable-handle {
+            color: #94a3b8;
+            cursor: grab;
+            margin-right: 8px;
+        }
+        
         /* Divider styling */
         .sidebar-divider {
             margin: 1rem 0;
@@ -925,7 +971,161 @@ app_sidebar = ui.sidebar(
         id="filters-content",
         style="display: block;"  # Make filters visible by default
     ),
+    # Divider
+    ui.tags.div(class_="sidebar-divider"),
+    # Column Order Section
+    ui.div(
+        ui.h3("Column Order", class_="text-xl font-semibold text-gray-800"),
+        ui.tags.i(
+            class_="fas fa-eye-slash toggle-button",
+            id="toggle-order-btn",
+            onclick="toggleColumnOrder()"
+        ),
+        class_="header-container"
+    ),
+    ui.div(
+        ui.div(
+            ui.p("Drag and drop columns to reorder them:",
+                 class_="text-sm text-gray-600 mb-2"),
+            ui.div(
+                id="column-order-list",
+                class_="column-order-container"
+            ),
+            # Hidden input to store the column order
+            ui.input_text("column_order", "", value="[]"),
+            ui.tags.style("#column_order { display: none; }"),
+            ui.div(
+                ui.input_action_button(
+                    "apply_order", "Apply Order",
+                    class_="mt-3 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                ),
+                class_="text-right mt-2"
+            ),
+            class_="p-2"
+        ),
+        id="column-order-content",
+        style="display: block;"  # Make column order visible by default
+    ),
     ui.tags.script("""
+        // Add Sortable.js from CDN
+        function loadScript(url, callback) {
+            var script = document.createElement('script');
+            script.type = 'text/javascript';
+            script.src = url;
+            script.onload = callback;
+            document.head.appendChild(script);
+        }
+        
+        loadScript('https://cdn.jsdelivr.net/npm/sortablejs@1.14.0/Sortable.min.js', function() {
+            // Initialize Sortable on the column-order-list element
+            var columnOrderList = document.getElementById('column-order-list');
+            if (columnOrderList) {
+                new Sortable(columnOrderList, {
+                    animation: 150,
+                    ghostClass: 'sortable-ghost',
+                    chosenClass: 'sortable-chosen',
+                    handle: '.sortable-handle',
+                    onEnd: function(evt) {
+                        // Get the current order and store it
+                        storeColumnOrder();
+                    }
+                });
+            }
+        });
+        
+        // Handle custom messages from the server
+        $(document).on('shiny:connected', function() {
+            Shiny.addCustomMessageHandler('update_column_order_list', function(message) {
+                if (message.action === 'update') {
+                    updateColumnOrderList();
+                }
+            });
+        });
+        
+        // Store the current column order
+        function storeColumnOrder() {
+            var columns = [];
+            var items = document.querySelectorAll('#column-order-list .sortable-item');
+            items.forEach(function(item) {
+                columns.push(item.getAttribute('data-column'));
+            });
+            
+            // Store the order in the hidden input field and trigger change event
+            const orderInput = document.getElementById('column_order');
+            orderInput.value = JSON.stringify(columns);
+            
+            // Dispatch change event to make sure Shiny detects the change
+            const event = new Event('change', { bubbles: true });
+            orderInput.dispatchEvent(event);
+            
+            // Add a visual indicator that the order has been saved
+            const applyButton = document.getElementById('apply_order');
+            if (applyButton) {
+                applyButton.classList.add('bg-green-600');
+                applyButton.textContent = 'Order Ready to Apply';
+                
+                // Reset the button after 2 seconds
+                setTimeout(function() {
+                    applyButton.classList.remove('bg-green-600');
+                    applyButton.classList.add('bg-blue-600');
+                    applyButton.textContent = 'Apply Order';
+                }, 2000);
+            }
+        }
+        
+        // Update the column order list based on selected columns
+        function updateColumnOrderList() {
+            var columnOrderList = document.getElementById('column-order-list');
+            
+            // Clear existing items
+            columnOrderList.innerHTML = '';
+            
+            // Get all selected columns
+            var selectedColumns = [];
+            
+            // Process student info checkboxes
+            const studentInfoCheckboxes = document.querySelectorAll('input[name="student_info_cols"]');
+            studentInfoCheckboxes.forEach(function(checkbox) {
+                if (checkbox.checked) {
+                    selectedColumns.push({
+                        id: 'student_info_' + checkbox.value,
+                        name: checkbox.value,
+                        originalName: checkbox.value
+                    });
+                }
+            });
+            
+            // Process assessment and grade checkboxes
+            const assessmentAndGradeCheckboxes = document.querySelectorAll('input[type="checkbox"][id^="col_"]');
+            assessmentAndGradeCheckboxes.forEach(function(checkbox) {
+                if (checkbox.checked) {
+                    // Find the label associated with this checkbox
+                    const label = checkbox.parentNode.querySelector('label');
+                    const columnName = label ? label.textContent.trim() : checkbox.id.substring(4);
+                    const originalName = checkbox.getAttribute('data-original-name') || checkbox.id.substring(4).replace(/_/g, ' ');
+                    
+                    selectedColumns.push({
+                        id: checkbox.id,
+                        name: columnName,
+                        originalName: originalName
+                    });
+                }
+            });
+            
+            // Add items to the sortable list
+            selectedColumns.forEach(function(column) {
+                var item = document.createElement('div');
+                item.className = 'sortable-item';
+                item.setAttribute('data-column', column.originalName);
+                item.innerHTML = '<i class="fas fa-grip-lines sortable-handle"></i> ' + column.name;
+                columnOrderList.appendChild(item);
+            });
+            
+            // Update the stored order
+            storeColumnOrder();
+        }
+        
+        // Toggle column selection section
         function toggleColumnSelection() {
             const content = document.getElementById('column-selection-content');
             const toggleBtn = document.getElementById('toggle-column-btn');
@@ -941,6 +1141,7 @@ app_sidebar = ui.sidebar(
             }
         }
 
+        // Toggle filters section
         function toggleFilters() {
             const content = document.getElementById('filters-content');
             const toggleBtn = document.getElementById('toggle-filters-btn');
@@ -956,6 +1157,24 @@ app_sidebar = ui.sidebar(
             }
         }
         
+        // Toggle column order section
+        function toggleColumnOrder() {
+            const content = document.getElementById('column-order-content');
+            const toggleBtn = document.getElementById('toggle-order-btn');
+            
+            if (content.style.display === 'none' || content.style.display === '') {
+                content.style.display = 'block';
+                toggleBtn.classList.remove('fa-eye');
+                toggleBtn.classList.add('fa-eye-slash');
+                updateColumnOrderList(); // Update the list when showing
+            } else {
+                content.style.display = 'none';
+                toggleBtn.classList.remove('fa-eye-slash');
+                toggleBtn.classList.add('fa-eye');
+            }
+        }
+        
+        // Toggle filter section
         function toggleFilterSection(sectionId) {
             const section = document.getElementById(sectionId);
             const header = section.previousElementSibling;
@@ -974,6 +1193,7 @@ app_sidebar = ui.sidebar(
         
         // Initialize all filter sections as collapsed on page load
         document.addEventListener('DOMContentLoaded', function() {
+            // Initialize filter sections
             const filterContents = document.querySelectorAll('.filter-content');
             filterContents.forEach(function(content) {
                 content.style.display = 'none';
@@ -984,6 +1204,18 @@ app_sidebar = ui.sidebar(
                     icon.classList.add('fa-chevron-right');
                 }
             });
+            
+            // Listen for changes in checkbox selections
+            var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(function(checkbox) {
+                checkbox.addEventListener('change', function() {
+                    // Update the column order list when checkboxes change
+                    updateColumnOrderList();
+                });
+            });
+            
+            // Initialize the column order list
+            updateColumnOrderList();
         });
     """)
 )

@@ -170,6 +170,62 @@ def server(input, output, session):
         return list(cols)
 
     @reactive.Calc
+    def ordered_columns():
+        """Return the columns in the user-defined order or in the original order if no custom order is defined"""
+        selected_cols = selected_columns_list()
+
+        # If no column order is defined or the Apply Order button hasn't been clicked, return the selected columns as is
+        if not input.column_order() or input.column_order() == "[]":
+            return selected_cols
+
+        try:
+            # Parse the JSON string from the hidden input
+            import json
+            ordered_cols = json.loads(input.column_order())
+
+            # Filter out any columns that aren't in the selected columns
+            ordered_cols = [
+                col for col in ordered_cols if col in selected_cols]
+
+            # Add any selected columns that aren't in the ordered list
+            for col in selected_cols:
+                if col not in ordered_cols:
+                    ordered_cols.append(col)
+
+            return ordered_cols
+        except json.JSONDecodeError:
+            # If there's an error parsing the JSON, return the selected columns as is
+            return selected_cols
+
+    @reactive.Effect
+    @reactive.event(selected_columns_list)
+    def _():
+        # When the selected columns change, update the UI
+        # This is necessary because the column order list needs to be updated
+        # whenever the user selects or deselects columns
+
+        # We use JavaScript to update the column order list
+        session.send_custom_message(
+            "update_column_order_list",
+            {"action": "update"}
+        )
+
+    @reactive.Effect
+    @reactive.event(input.apply_order)
+    def _():
+        # This effect will be triggered when the Apply Order button is clicked
+        # We don't need to do anything here as the ordered_columns reactive calculation
+        # will be automatically triggered when the button is clicked, and the data_table
+        # output will be re-rendered with the new column order
+
+        # Show a notification to the user that the column order has been applied
+        ui.notification_show(
+            "Column order applied!",
+            type="success",
+            duration=3
+        )
+
+    @reactive.Calc
     def get_active_filters():
         """Collect all active filters from the UI"""
         filters = {
@@ -228,9 +284,11 @@ def server(input, output, session):
     @output
     @render.data_frame
     def data_table():
-        # Ensure all selected columns exist in the DataFrame
-        valid_cols = [col for col in selected_columns_list()
-                      if col in df.columns]
+        # Get the ordered columns
+        ordered_cols = ordered_columns()
+
+        # Ensure all ordered columns exist in the DataFrame
+        valid_cols = [col for col in ordered_cols if col in df.columns]
 
         # If no columns are selected, return an empty DataFrame with a message
         if not valid_cols:
@@ -327,7 +385,7 @@ def server(input, output, session):
                     if condition is not None:
                         filtered_df = filtered_df[condition]
 
-        # Return the filtered DataFrame with selected columns
+        # Return the filtered DataFrame with selected columns in the user-defined order
         return filtered_df[valid_cols]
 
 
