@@ -1,6 +1,8 @@
 from shiny import App, render, ui, reactive
 from baseData import get_base_data
 from mtss.sidebar import app_sidebar, organized_cols, baseColumns
+import os
+import pathlib
 
 
 df = get_base_data().to_pandas()
@@ -25,7 +27,7 @@ head_content = ui.tags.head(
     # Custom CSS
     ui.tags.link(
         rel="stylesheet",
-        href="custom.css"
+        href="static/custom.css"
     ),
     ui.tags.style("""
         body, html {
@@ -389,4 +391,5 @@ def server(input, output, session):
         return filtered_df[valid_cols]
 
 
-app = App(app_ui, server)
+app = App(app_ui, server, static_assets=str(
+    pathlib.Path(__file__).parent/"static"))
